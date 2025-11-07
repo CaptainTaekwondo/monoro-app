@@ -1,4 +1,4 @@
-// server.js (الإصدار الاحترافي الكامل - جاهز للنشر)
+// server.js (الإصدار الاحترافي الكامل - جاهز للنشر - معدل للصيانة)
 
 const express = require('express');
 const axios = require('axios');
@@ -127,7 +127,7 @@ async function fetchParallelMarket() {
 }
 
 
-// --- نقطة نهاية (Endpoint) الرئيسية: جلب ومقارنة الكل (معدلة) ---
+// --- نقطة نهاية (Endpoint) الرئيسية: جلب ومقارنة الكل (معدلة للصيانة) ---
 app.get('/api/all-rates', async (req, res) => {
     
     const requestedCurrency = req.query.currency || 'USD'; 
@@ -154,18 +154,6 @@ app.get('/api/all-rates', async (req, res) => {
     // الترتيب لأفضل (أنت تشتري) = أقل سعر بيع
     const topBuyList = [...filteredRates].sort((a, b) => a.sell - b.sell);
     // الترتيب لأفضل (أنت تبيع) = أعلى سعر شراء
-    const topSellList = [...filteredRates].sort((a, b) => b.buy - a.buy);
-
-    res.json({
-        currency: requestedCurrency,
-        bestToBuy: topBuyList,
-        bestToSell: topSellList,
-        last_updated: new Date()
-    });
-});
-
-    const filteredRates = allRates.filter(rate => rate.currencyCode === requestedCurrency);
-    const topBuyList = [...filteredRates].sort((a, b) => a.sell - b.sell);
     const topSellList = [...filteredRates].sort((a, b) => b.buy - a.buy);
 
     res.json({
@@ -227,7 +215,6 @@ app.get('/api/gold-rates', async (req, res) => {
         console.error("خطأ في كشط الذهب:", error.message);
         res.status(500).json({ error: "فشل كشط أسعار الذهب", details: error.message });
     }
-});
 });
 
 
