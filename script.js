@@ -1,4 +1,4 @@
-// server.js (الإصدار الاحترافي الكامل - جاهز للنشر - معدل بالمهلة)
+// server.js (الإصدار الاحترافي الكامل - جاهز للنشر - نهائي ونظيف)
 
 const express = require('express');
 const axios = require('axios');
@@ -15,7 +15,7 @@ app.use(cors());
 async function fetchNBE() {
     try {
         const apiUrl = 'https://www.nbe.com.eg/NBE/Services/Prices/CurrencyPrices.asmx/GetCurrentCurrencyPrices';
-        // --- ✨ التعديل الجديد: إضافة مهلة 8 ثوانٍ ---
+        // --- ✨ تعديل المهلة: 8 ثوانٍ ---
         const response = await axios.post(apiUrl, {}, { timeout: 8000 });
         
         const rates = JSON.parse(response.data.d);
@@ -37,7 +37,7 @@ async function fetchNBE() {
 async function fetchBanqueMisr() {
     try {
         const apiUrl = 'https://www.banquemisr.com/bm/Services/Prices/CurrencyPrices.asmx/GetCurrencyPrices';
-        // --- ✨ التعديل الجديد: إضافة مهلة 8 ثوانٍ ---
+        // --- ✨ تعديل المهلة: 8 ثوانٍ ---
         const response = await axios.post(apiUrl, {}, { timeout: 8000 });
         
         const rates = JSON.parse(response.data.d);
@@ -60,7 +60,7 @@ async function fetchCIB() {
     try {
         // (الكود بالأسفل لن يعمل لأننا عطلناه من 'all-rates')
         const targetUrl = 'https://www.cibeg.com/ar/rates-and-fees/currency-rates';
-        const response = await axios.get(targetUrl);
+        const response = await axios.get(targetUrl, { timeout: 8000 });
         const html = response.data;
         const $ = cheerio.load(html);
 
@@ -107,7 +107,7 @@ async function fetchParallelMarket() {
         const targetUrl = 'https://some-parallel-aggregator.com/usd'; // (رابط افتراضي)
         const sourceName = "ExampleAggregator.com"; 
 
-        const response = await axios.get(targetUrl);
+        const response = await axios.get(targetUrl, { timeout: 8000 });
         const html = response.data;
         const $ = cheerio.load(html);
 
@@ -196,7 +196,7 @@ app.get('/api/gold-rates', async (req, res) => {
         const targetUrl = 'https_//some-real-gold-site.com/prices'; // (رابط افتراضي)
         const sourceName = "SomeGoldSite.com";
 
-        const response = await axios.get(targetUrl);
+        const response = await axios.get(targetUrl, { timeout: 8000 });
         const html = response.data;
         const $ = cheerio.load(html);
 
@@ -221,7 +221,7 @@ app.get('/api/gold-rates', async (req, res) => {
         });
     } catch (error) {
         console.error("خطأ في كشط الذهب:", error.message);
-        res.status(500).json({ error: "فشل كشط أسعار الذهب", details: error.message });
+        res.status(500).json({ error: "فشل كاشط أسعار الذهب", details: error.message });
     }
 });
 
