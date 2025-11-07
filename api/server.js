@@ -127,24 +127,42 @@ async function fetchParallelMarket() {
 }
 
 
-// --- نقطة النهاية (Endpoint) الرئيسية الجديدة: جلب ومقارنة الكل ---
+// --- نقطة نهاية (Endpoint) الرئيسية: جلب ومقارنة الكل (معدلة) ---
 app.get('/api/all-rates', async (req, res) => {
     
     const requestedCurrency = req.query.currency || 'USD'; 
     console.log(`\nيتم جلب ومقارنة أسعار: ${requestedCurrency}`);
 
     const results = await Promise.allSettled([
-        fetchNBE(),
-        fetchBanqueMisr(),
-        fetchCIB(),
-        fetchParallelMarket()
+        fetchNBE(),           // <--- سيعمل
+        fetchBanqueMisr()     // <--- سيعمل
+        // fetchCIB(),        // <--- تم تعطيله مؤقتاً
+        // fetchParallelMarket() // <--- تم تعطيله مؤقداً
     ]);
 
     let allRates = [];
     results.forEach(result => {
-        if (result.status === 'fulfilled' && result.value) allRates.push(...result.value); 
-        else if (result.status === 'rejected') console.warn("🚨 إنذار فشل وحدة جلب:", result.reason.message);
+        if (result.status === 'fulfilled' && result.value) {
+            allRates.push(...result.value); 
+        } else if (result.status === 'rejected') {
+            console.warn("🚨 إنذار فشل وحدة جلب:", result.reason.message);
+        }
     });
+
+    const filteredRates = allRates.filter(rate => rate.currencyCode === requestedCurrency);
+
+    // الترتيب لأفضل (أنت تشتري) = أقل سعر بيع
+    const topBuyList = [...filteredRates].sort((a, b) => a.sell - b.sell);
+    // الترتيب لأفضل (أنت تبيع) = أعلى سعر شراء
+    const topSellList = [...filteredRates].sort((a, b) => b.buy - a.buy);
+
+    res.json({
+        currency: requestedCurrency,
+        bestToBuy: topBuyList,
+        bestToSell: topSellList,
+        last_updated: new Date()
+    });
+});
 
     const filteredRates = allRates.filter(rate => rate.currencyCode === requestedCurrency);
     const topBuyList = [...filteredRates].sort((a, b) => a.sell - b.sell);
@@ -158,8 +176,25 @@ app.get('/api/all-rates', async (req, res) => {
     });
 });
 
-// --- نقطة نهاية (Endpoint) لأسعار الذهب (الإصدار المطور) ---
+// --- نقطة نهاية (Endpoint) لأسعار الذهب (معطل مؤقتاً) ---
 app.get('/api/gold-rates', async (req, res) => {
+    
+    // --- تعطيل مؤقت ---
+    // (تم إضافة هذا لإرجاع بيانات وهمية فوراً لأن الكاشط الحقيقي مكسور)
+    // (هذا يمنع توقف الموقع بالكامل)
+    return res.json({
+        source: "Gold Price (تحت الصيانة)",
+        prices: [
+            { carat: "عيار 24", price: 0 },
+            { carat: "عيار 21", price: 0 },
+            { carat: "عيار 18", price: 0 }
+        ],
+        last_updated: new Date()
+    });
+    // --- نهاية التعطيل ---
+
+
+    // (الكود بالأسفل "ميت" الآن ولن يتم تشغيله، وهو المطلوب)
     console.log("يتم جلب أسعار الذهب (Scraping)...");
     try {
         const targetUrl = 'https_//some-real-gold-site.com/prices'; // (رابط افتراضي)
@@ -192,6 +227,7 @@ app.get('/api/gold-rates', async (req, res) => {
         console.error("خطأ في كشط الذهب:", error.message);
         res.status(500).json({ error: "فشل كشط أسعار الذهب", details: error.message });
     }
+});
 });
 
 
