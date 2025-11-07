@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monoro - اعرف السعر الحقيقي</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+
+    <header class="monoro-header">
+        <div class="container">
+            <div class="logo-container">
+                <h1>Monoro</h1>
+            </div>
+            <h2>اعرف السعر الحقيقي.</h2>
+            <p>آخر تحديث: <span id="last-update">...</span></p>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <section class="card">
+            <h2 id="currency-title"><i class="fas fa-dollar-sign"></i> اختر عملة للمقارنة</h2>
+
+            <div class="currency-selector">
+                <label for="foreign-currency-select">العملة الأجنبية (مقابل الجنيه):</label>
+                <select id="foreign-currency-select">
+                    <option value="">جاري التحميل...</option>
+                </select>
+            </div>
+            
+            <hr style="opacity: 0.3;">
+
+            <div class="cbe-price">
+                <p>ملخص المقارنة: <span class="price" id="cbe-eur-price">...</span></p>
+            </div>
+            
+            <h3><i class="fas fa-trophy"></i> أفضل البنوك للشراء (أنت تشتري)</h3>
+            <table id="top-buy-banks">
+                <thead>
+                    <tr>
+                        <th>البنك</th>
+                        <th>سعر البيع (أنت تشتري)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+
+            <h3><i class="fas fa-trophy"></i> أفضل البنوك للبيع (أنت تبيع)</h3>
+            <table id="top-sell-banks">
+                <thead>
+                    <tr>
+                        <th>البنك</th>
+                        <th>سعر الشراء (أنت تبيع)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </section>
+
+        <section class="card gold-card">
+            <h2><i class="fas fa-ring"></i> أسعار الذهب (في السوق)</h2>
+            
+            <ul id="gold-price-list" class="gold-list">
+                <li>جاري التحميل...</li>
+            </ul>
+            
+            <p class="gold-source">المصدر: <span id="gold-source">...</span></p>
+        </section>
+
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
