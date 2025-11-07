@@ -1,180 +1,232 @@
-document.addEventListener('DOMContentLoaded', () => {
-    
-    // --- 1. تحديد العناصر في الصفحة ---
-    const goldPriceElement = document.getElementById('gold-price');
-    const lastUpdateElement = document.getElementById('last-update');
-    const topBuyTableBody = document.getElementById('top-buy-banks').getElementsByTagName('tbody')[0];
-    const topSellTableBody = document.getElementById('top-sell-banks').getElementsByTagName('tbody')[0];
-    const currencySelectElement = document.getElementById('foreign-currency-select');
-    const currencyTitleElement = document.getElementById('currency-title');
-    const bankPriceElement = document.getElementById('cbe-eur-price'); // عنصر ملخص المقارنة
-    const goldListElement = document.getElementById('gold-price-list'); // قائمة الذهب
-    const goldSourceElement = document.getElementById('gold-source'); // مصدر الذهب
+// server.js (الإصدار الاحترافي الكامل - جاهز للنشر - معدل بالمهلة)
 
-    // --- 2. تحديد روابط الـ API ---
-    // (هذه روابط "نسبية". Vercel سيفهمها تلقائياً)
-    const ALL_RATES_API_BASE = '/api/all-rates';
-    const GOLD_API_URL = '/api/gold-rates';
+const express = require('express');
+const axios = require('axios');
+const cheerio = require('cheerio'); // مكتبة كشط الويب
+const cors = require('cors'); // <-- لاستقبال الطلبات من مواقع أخرى
 
-    // --- 3. قائمة العملات التي سنهتم بها ---
-    const famousCurrencies = [
-        { code: 'USD', name: 'دولار أمريكي' },
-        { code: 'EUR', name: 'يورو' },
-        { code: 'SAR', name: 'ريال سعودي' },
-        { code: 'KWD', name: 'دينار كويتي' },
-        { code: 'GBP', name: 'جنيه استرليني' },
-        { code: 'AED', name: 'درهم إماراتي' },
-        { code: 'QAR', name: 'ريال قطري' },
-        { code: 'CHF', name: 'فرنك سويسري' }
-    ];
+// --- إعدادات الخادم ---
+const app = express();
+// (Vercel لا يحتاج PORT، لكننا سنبقيه)
+const PORT = process.env.PORT || 3000; 
+app.use(cors());
 
-    // --- 4. دالة لملء قائمة اختيار العملات (تُستدعى مرة واحدة) ---
-    function populateCurrencySelector() {
-        currencySelectElement.innerHTML = ''; // إفراغ القائمة
+// --- الوحدة 1: جالب بيانات البنك الأهلي (NBE) ---
+async function fetchNBE() {
+    try {
+        const apiUrl = 'https://www.nbe.com.eg/NBE/Services/Prices/CurrencyPrices.asmx/GetCurrentCurrencyPrices';
+        // --- ✨ التعديل الجديد: إضافة مهلة 8 ثوانٍ ---
+        const response = await axios.post(apiUrl, {}, { timeout: 8000 });
         
-        famousCurrencies.forEach(currency => {
-            const option = document.createElement('option');
-            option.value = currency.code; // القيمة هي الرمز (USD)
-            option.textContent = currency.name; // النص هو الاسم
-            currencySelectElement.appendChild(option);
-        });
+        const rates = JSON.parse(response.data.d);
         
-        // اجعل الدولار هو الاختيار الافتراضي
-        currencySelectElement.value = "USD";
+        return rates.map(rate => ({
+            bankName: "البنك الأهلي المصري",
+            currencyCode: rate.CurrencyCode,
+            buy: parseFloat(rate.PurchaseRate) || 0,
+            sell: parseFloat(rate.SaleRate) || 0
+        }));
+    } catch (error) {
+        // (إذا انتهت المهلة، سيفشل هنا بأمان)
+        console.error("فشل جلب بيانات البنك الأهلي:", error.message);
+        return []; 
     }
+}
 
-    // --- 5. دالة لتحديث عنوان العملة المختار ---
-    function updateCurrencyTitle(selectedCode) {
-        const selectedCurrency = famousCurrencies.find(c => c.code === selectedCode);
-        const currencyName = selectedCurrency ? selectedCurrency.name : selectedCode;
-        currencyTitleElement.innerHTML = `<i class="fas fa-coins"></i> أفضل أسعار ${currencyName}`;
-    }
-
-    // --- 6. دالة لملء الجداول بالبيانات الجاهزة ---
-    function renderBankTables(bestToBuyList, bestToSellList) {
+// --- الوحدة 2: جالب بيانات بنك مصر (Banque Misr) ---
+async function fetchBanqueMisr() {
+    try {
+        const apiUrl = 'https://www.banquemisr.com/bm/Services/Prices/CurrencyPrices.asmx/GetCurrencyPrices';
+        // --- ✨ التعديل الجديد: إضافة مهلة 8 ثوانٍ ---
+        const response = await axios.post(apiUrl, {}, { timeout: 8000 });
         
-        // ملء جدول "أفضل شراء" (أنت تشتري)
-        topBuyTableBody.innerHTML = ''; // إفراغ الجدول
-        if (bestToBuyList.length === 0) {
-            topBuyTableBody.innerHTML = '<tr><td colspan="2">لا توجد بيانات متاحة حالياً</td></tr>';
-        } else {
-            bestToBuyList.forEach(rate => {
-                const row = `
-                    <tr>
-                        <td>${rate.bankName}</td>
-                        <td class="price">${rate.sell} جنيه</td>
-                    </tr>
-                `;
-                topBuyTableBody.innerHTML += row;
-            });
-        }
+        const rates = JSON.parse(response.data.d);
 
-        // ملء جدول "أفضل بيع" (أنت تبيع)
-        topSellTableBody.innerHTML = ''; // إفراغ الجدول
-        if (bestToSellList.length === 0) {
-            topSellTableBody.innerHTML = '<tr><td colspan="2">لا توجد بيانات متاحة حالياً</td></tr>';
-        } else {
-            bestToSellList.forEach(rate => {
-                const row = `
-                    <tr>
-                        <td>${rate.bankName}</td>
-                        <td class="price">${rate.buy} جنيه</td>
-                    </tr>
-                `;
-                topSellTableBody.innerHTML += row;
-            });
-        }
+        return rates.map(rate => ({
+            bankName: "بنك مصر",
+            currencyCode: rate.CurrencyCode,
+            buy: parseFloat(rate.PurchaseRate) || 0,
+            sell: parseFloat(rate.SaleRate) || 0
+        }));
+    } catch (error) {
+        // (إذا انتهت المهلة، سيفشل هنا بأمان)
+        console.error("فشل جلب بيانات بنك مصر:", error.message);
+        return [];
     }
+}
 
-    // --- 7. دالة جلب أسعار البنوك (الجديدة والمعدلة) ---
-    async function fetchBankRates(currencyCode) {
-        console.log(`يتم طلب أسعار ${currencyCode} من الخادم...`);
-        try {
-            // بناء الرابط بناءً على العملة المختارة
-            const apiUrl = `${ALL_RATES_API_BASE}?currency=${currencyCode}`;
-            
-            const response = await fetch(apiUrl);
-            if (!response.ok) {
-                throw new Error('فشل الاتصال بخادم مقارنة البنوك');
-            }
-            const data = await response.json(); // { bestToBuy: [], bestToSell: [] }
+// --- الوحدة 3: جالب بيانات بنك CIB (معطل مؤقتاً) ---
+async function fetchCIB() {
+    try {
+        // (الكود بالأسفل لن يعمل لأننا عطلناه من 'all-rates')
+        const targetUrl = 'https://www.cibeg.com/ar/rates-and-fees/currency-rates';
+        const response = await axios.get(targetUrl);
+        const html = response.data;
+        const $ = cheerio.load(html);
 
-            // إرسال البيانات الجاهزة لدالة العرض
-            renderBankTables(data.bestToBuy, data.bestToSell);
-            updateCurrencyTitle(currencyCode);
-            bankPriceElement.innerText = `يتم عرض أسعار ${data.bestToBuy.length} مصادر`;
+        const rates = [];
+        let validationError = false; 
+        const tableRows = $('table.table.rates tbody tr'); 
+        
+        tableRows.each((index, element) => {
+            const row = $(element);
+            const currencyName = row.find('td').eq(0).text().trim();
+            const buyPrice = row.find('td').eq(1).text().trim();
+            const sellPrice = row.find('td').eq(2).text().trim();
 
-        } catch (error) {
-            console.error('خطأ في جلب أسعار البنك:', error);
-            topBuyTableBody.innerHTML = `<tr><td colspan="2">خطأ في تحميل البيانات</td></tr>`;
-            topSellTableBody.innerHTML = `<tr><td colspan="2">خطأ في تحميل البيانات</td></tr>`;
-            bankPriceElement.innerText = "خطأ في الاتصال بالخادم";
-        }
-    }
+            let currencyCode = '';
+            if (currencyName.includes('دولار أمريكى')) currencyCode = 'USD';
+            if (currencyName.includes('يورو')) currencyCode = 'EUR';
 
-    // --- 8. دالة جلب أسعار الذهب (مُرقاة) ---
-    async function fetchGoldRates() {
-        try {
-            const response = await fetch(GOLD_API_URL);
-            if (!response.ok) {
-                throw new Error('فشل الاتصال بخادم الذهب');
-            }
-            const data = await response.json(); // { source: "...", prices: [...] }
-
-            goldListElement.innerHTML = ''; // إفراغ القائمة
-            if (data.prices && data.prices.length > 0) {
-                data.prices.forEach(item => {
-                    const li = `
-                        <li>
-                            <span>${item.carat}</span>
-                            <strong>${item.price} جنيه</strong>
-                        </li>
-                    `;
-                    goldListElement.innerHTML += li;
+            if (currencyCode) {
+                const buy = parseFloat(buyPrice) || 0;
+                const sell = parseFloat(sellPrice) || 0;
+                if (buy === 0 || sell === 0) validationError = true; 
+                rates.push({
+                    bankName: "بنك CIB",
+                    currencyCode: currencyCode,
+                    buy: buy,
+                    sell: sell
                 });
-                goldSourceElement.innerText = data.source;
-            } else {
-                goldListElement.innerHTML = '<li>لا توجد بيانات حالياً</li>';
             }
-        } catch (error) {
-            console.error('خطأ في جلب أسعار الذهب:', error);
-            goldListElement.innerHTML = `<li><span style="color:red;">خطأ في تحميل الأسعار</span></li>`;
-            goldSourceElement.innerText = 'فشل';
-        }
-    }
+        });
 
-    // --- 9. الدالة الرئيسية لتشغيل كل شيء ---
-    async function updateAllData() {
-        console.log("جاري التحديث الدوري...");
+        if (tableRows.length === 0) throw new Error("فشل كاشط CIB (بوت): لم يتم العثور على جدول الأسعار.");
+        if (validationError) throw new Error("فشل كاشط CIB (بوت): الأسعار أصبحت صفر.");
+        return rates;
+    } catch (error) {
+        console.error("خطأ فادح في وحدة CIB:", error.message);
+        throw new Error(`فشل تحديث بيانات CIB: ${error.message}`); 
+    }
+}
+
+// --- الوحدة 4: جالب بيانات السوق الموازية (معطل مؤقتاً) ---
+async function fetchParallelMarket() {
+    try {
+        // (الكود بالأسفل لن يعمل لأننا عطلناه من 'all-rates')
+        const targetUrl = 'https://some-parallel-aggregator.com/usd'; // (رابط افتراضي)
+        const sourceName = "ExampleAggregator.com"; 
+
+        const response = await axios.get(targetUrl);
+        const html = response.data;
+        const $ = cheerio.load(html);
+
+        const buySelector = 'div.buy-price-parallel > span.rate'; // (محدد افتراضي)
+        const sellSelector = 'div.sell-price-parallel > span.rate'; // (محدد افتراضي)
+
+        const buyPrice = $(buySelector).text().trim();
+        const sellPrice = $(sellSelector).text().trim();
         
-        // احصل على العملة المختارة حالياً
-        const selectedCode = currencySelectElement.value;
+        const buy = parseFloat(buyPrice) || 0;
+        const sell = parseFloat(sellPrice) || 0;
 
-        // قم بتشغيل الدالتين (جلب البنوك والذهب) في نفس الوقت
-        await Promise.all([
-            fetchBankRates(selectedCode), // جلب البنوك للعملة المختارة
-            fetchGoldRates()
-        ]);
-
-        lastUpdateElement.innerText = new Date().toLocaleTimeString('ar-EG');
-        console.log("تم التحديث بنجاح.");
+        if (buy === 0 || sell === 0) throw new Error("فشل كاشط السوق الموازية (بوت): الأسعار صفر.");
+        
+        return [{
+            bankName: `السوق الموازية (${sourceName})`, 
+            currencyCode: "USD",
+            buy: buy,
+            sell: sell
+        }];
+    } catch (error) {
+        console.warn("🚨 إنذار: فشلت وحدة السوق الموازية.");
+        return []; 
     }
+}
 
-    // --- 10. التشغيل الأولي وربط الأحداث ---
 
-    // أ: أولاً، قم بملء القائمة المنسدلة بالعملات الثابتة
-    populateCurrencySelector();
+// --- نقطة نهاية (Endpoint) الرئيسية: جلب ومقارنة الكل (معدلة للصيانة) ---
+app.get('/api/all-rates', async (req, res) => {
+    
+    const requestedCurrency = req.query.currency || 'USD'; 
+    console.log(`\nيتم جلب ومقارنة أسعار: ${requestedCurrency}`);
 
-    // ب: عندما يغير المستخدم العملة، قم بتحديث بيانات البنوك *فوراً*
-    currencySelectElement.addEventListener('change', () => {
-        const selectedCode = currencySelectElement.value;
-        fetchBankRates(selectedCode); // لا داعي لانتظار الدقيقة الكاملة
-        updateCurrencyTitle(selectedCode);
+    const results = await Promise.allSettled([
+        fetchNBE(),           // <--- سيعمل
+        fetchBanqueMisr()     // <--- سيعمل
+        // fetchCIB(),        // <--- تم تعطيله مؤقتاً
+        // fetchParallelMarket() // <--- تم تعطيله مؤقداً
+    ]);
+
+    let allRates = [];
+    results.forEach(result => {
+        if (result.status === 'fulfilled' && result.value) {
+            allRates.push(...result.value); 
+        } else if (result.status === 'rejected') {
+            console.warn("🚨 إنذار فشل وحدة جلب:", result.reason.message);
+        }
     });
 
-    // ج: قم بتشغيل التحديث الكامل أول مرة عند فتح الصفحة
-    updateAllData();
+    const filteredRates = allRates.filter(rate => rate.currencyCode === requestedCurrency);
 
-    // د: قم بضبط التحديث الدوري (كل 60 ثانية)
-    setInterval(updateAllData, 60000);
+    // الترتيب لأفضل (أنت تشتري) = أقل سعر بيع
+    const topBuyList = [...filteredRates].sort((a, b) => a.sell - b.sell);
+    // الترتيب لأفضل (أنت تبيع) = أعلى سعر شراء
+    const topSellList = [...filteredRates].sort((a, b) => b.buy - a.buy);
+
+    res.json({
+        currency: requestedCurrency,
+        bestToBuy: topBuyList,
+        bestToSell: topSellList,
+        last_updated: new Date()
+    });
 });
+
+// --- نقطة نهاية (Endpoint) لأسعار الذهب (معطل مؤقتاً) ---
+app.get('/api/gold-rates', async (req, res) => {
+    
+    // --- تعطيل مؤقت ---
+    // (تم إضافة هذا لإرجاع بيانات وهمية فوراً لأن الكاشط الحقيقي مكسور)
+    // (هذا يمنع توقف الموقع بالكامل)
+    return res.json({
+        source: "Gold Price (تحت الصيانة)",
+        prices: [
+            { carat: "عيار 24", price: 0 },
+            { carat: "عيار 21", price: 0 },
+            { carat: "عيار 18", price: 0 }
+        ],
+        last_updated: new Date()
+    });
+    // --- نهاية التعطيل ---
+
+
+    // (الكود بالأسفل "ميت" الآن ولن يتم تشغيله، وهو المطلوب)
+    console.log("يتم جلب أسعار الذهب (Scraping)...");
+    try {
+        const targetUrl = 'https_//some-real-gold-site.com/prices'; // (رابط افتراضي)
+        const sourceName = "SomeGoldSite.com";
+
+        const response = await axios.get(targetUrl);
+        const html = response.data;
+        const $ = cheerio.load(html);
+
+        const selector24k = 'div.price-card-24k > span.price'; // (محدد افتراضي)
+        const selector21k = 'div.price-card-21k > span.price'; // (محدد افتراضي)
+        const selector18k = 'div.price-card-18k > span.price'; // (محدد افتراضي)
+        
+        const price24k = parseFloat($(selector24k).text().replace(/[^0-9.]/g, '')) || 0;
+        const price21k = parseFloat($(selector21k).text().replace(/[^0-9.]/g, '')) || 0;
+        const price18k = parseFloat($(selector18k).text().replace(/[^0-9.]/g, '')) || 0;
+
+        if (price21k === 0) throw new Error("فشل كاشط الذهب (بوت): سعر عيار 21 هو صفر.");
+
+        res.json({
+            source: sourceName,
+            prices: [
+                { carat: "عيار 24", price: price24k },
+                { carat: "عيار 21", price: price21k },
+                { carat: "عيار 18", price: price18k }
+            ],
+            last_updated: new Date()
+        });
+    } catch (error) {
+        console.error("خطأ في كشط الذهب:", error.message);
+        res.status(500).json({ error: "فشل كشط أسعار الذهب", details: error.message });
+    }
+});
+
+
+// --- تشغيل الخادم (Vercel يستخدم هذا الملف كوحدة) ---
+// Vercel يتولى تشغيل الكود عند الطلب
+// لكننا نحتاج إلى "export" التطبيق
+module.exports = app;
