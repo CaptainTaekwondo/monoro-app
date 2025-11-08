@@ -9,7 +9,7 @@ const app = express();
 app.use(cors());
 
 // ============ 🧠 كاش ذكي =============
-// (كما هو)
+// (سيقوم بتخزين بيانات البنوك لمدة دقيقة)
 const cache = {
   allRates: { data: null, timestamp: 0 },
   goldRates: { data: null, timestamp: 0 }
