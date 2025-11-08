@@ -1,4 +1,4 @@
-// server.js — Monoro 2025 (Ultimate Caching Version)
+// server.js — Monoro 2025 (Ultimate Caching Version - With Scraping API Proxy)
 const express = require('express');
 const axios = require('axios');
 const cheerio = require('cheerio');
@@ -7,19 +7,38 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
+// --- ✨ المفتاح السري للوسيط (تمت إضافته!) ---
+const SCRAPINGBEE_API_KEY = 'Z9FGEYKMW4IX648MC489SKBC2HF3C76RWJDBTL8UX4VWRHLK3VBD8NKUOSDEFA9PUFJIEB40R2MF4J3F';
+
+// --- ✨ دالة مساعدة جديدة (للاستدعاء عبر الوسيط) ---
+async function fetchWithProxy(targetUrl) {
+  const proxyUrl = 'https://app.scrapingbee.com/api/v1/';
+  
+  const params = {
+    api_key: SCRAPINGBEE_API_KEY,
+    url: targetUrl, // <-- الموقع الذي نريده
+    'render_js': 'false' // (لا نحتاج JS، هذا يجعلها أسرع)
+  };
+
+  // (مهلة 9 ثوانٍ، لأن Vercel يعطينا 10 ثوانٍ فقط)
+  return await axios.get(proxyUrl, { params, timeout: 9000 }); 
+}
+
+
 // ============ 🧠 كاش ذكي =============
+// (كما هو)
 const cache = {
   allRates: { data: null, timestamp: 0 },
   goldRates: { data: null, timestamp: 0 }
 };
-const CACHE_DURATION = 60 * 1000; // دقيقة واحدة (60 ثانية)
+const CACHE_DURATION = 60 * 1000; // دقيقة واحدة
 
-// دالة مساعدة لفحص الكاش
 function isCacheValid(key) {
   return cache[key].data && (Date.now() - cache[key].timestamp < CACHE_DURATION);
 }
 
 // ============ 🏦 البنك الأهلي المصري ============
+// (هذا API نظيف، لا يحتاج وسيط)
 async function fetchNBE() {
   try {
     const url = 'https://www.nbe.com.eg/NBE/Services/Prices/CurrencyPrices.asmx/GetCurrentCurrencyPrices';
@@ -39,6 +58,7 @@ async function fetchNBE() {
 }
 
 // ============ 🏦 بنك مصر ============
+// (هذا API نظيف، لا يحتاج وسيط)
 async function fetchBanqueMisr() {
   try {
     const url = 'https://www.banquemisr.com/bm/Services/Prices/CurrencyPrices.asmx/GetCurrencyPrices';
@@ -58,10 +78,12 @@ async function fetchBanqueMisr() {
 }
 
 // ============ 💰 السوق السوداء ============
+// (هذا كشط، يحتاج وسيط)
 async function fetchParallelMarket() {
   const results = [];
   try {
-    const res1 = await axios.get('https://realegp.com/usd', { timeout: 10000 });
+    // --- ✨ استخدام الوسيط ---
+    const res1 = await fetchWithProxy('https://realegp.com/usd');
     const $1 = cheerio.load(res1.data);
     const rate1 = $1('div.rate-value').first().text().trim().replace(/[^\d.]/g, '');
     if (rate1) {
@@ -75,33 +97,18 @@ async function fetchParallelMarket() {
   } catch (err) {
     console.warn('⚠️ RealEGP fetch fail:', err.message);
   }
-
-  try {
-    const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3' };
-    const res2 = await axios.get('https://sarf-today.com/currency/us_dollar/market', { headers, timeout: 10000 });
-    const $2 = cheerio.load(res2.data);
-    const rate2 = $2('.market-price-number').first().text().trim().replace(/[^\d.]/g, '');
-    if (rate2) {
-      results.push({
-        bankName: 'السوق الموازية (Sarf-Today)',
-        currencyCode: 'USD',
-        buy: parseFloat(rate2),
-        sell: parseFloat(rate2)
-      });
-    }
-  } catch (err) {
-    console.warn('⚠️ SarfToday fetch fail:', err.message);
-  }
-
+  
+  // (سنكتفي بمصدر واحد الآن لتقليل استهلاك الـ API)
   return results;
 }
 
 // ============ 🪙 أسعار الذهب ============
+// (هذا كشط، يحتاج وسيط)
 async function fetchGoldRates() {
   try {
     const url = 'https://market.isagha.com/prices';
-    const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3' };
-    const res = await axios.get(url, { headers, timeout: 10000 });
+    // --- ✨ استخدام الوسيط ---
+    const res = await fetchWithProxy(url);
     const $ = cheerio.load(res.data);
     const gold = [];
 
@@ -119,7 +126,7 @@ async function fetchGoldRates() {
     );
 
     return {
-      source: 'iSagha.com',
+      source: 'iSagha.com (عبر وسيط)',
       prices: filteredGold,
       last_updated: new Date()
     };
@@ -129,7 +136,9 @@ async function fetchGoldRates() {
   }
 }
 
-// ============ 🌍 Endpoint: أسعار العملات ============
+// ============ 🌍 Endpoints (كما هي) ============
+// (الكود التالي لا يحتاج أي تعديل)
+
 app.get('/api/all-rates', async (req, res) => {
   const currency = req.query.currency || 'USD';
   
@@ -138,7 +147,7 @@ app.get('/api/all-rates', async (req, res) => {
     return res.json(cache.allRates.data);
   }
 
-  console.log(`🔄 Fetching fresh rates for ${currency}...`);
+  console.log(`🔄 Fetching fresh rates for ${currency} via Proxy...`);
   const results = await Promise.allSettled([
     fetchNBE(),
     fetchBanqueMisr(),
@@ -165,18 +174,16 @@ app.get('/api/all-rates', async (req, res) => {
   res.json(response);
 });
 
-// ============ 💎 Endpoint: أسعار الذهب ============
 app.get('/api/gold-rates', async (req, res) => {
   if (isCacheValid('goldRates')) {
     console.log('⚡ Using cached gold data');
     return res.json(cache.goldRates.data);
   }
   
-  console.log('🔄 Fetching fresh gold data...');
+  console.log('🔄 Fetching fresh gold data via Proxy...');
   const gold = await fetchGoldRates();
   cache.goldRates = { data: gold, timestamp: Date.now() };
   res.json(gold);
 });
 
-// --- تصدير التطبيق لـ Vercel ---
 module.exports = app;
